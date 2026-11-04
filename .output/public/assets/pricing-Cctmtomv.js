@@ -1,0 +1,1 @@
+function e(e){let t=e.reduce((e,t)=>e+(t.unitPrice??t.price??0)*(t.quantity??1),0);return{subtotal:t,delivery:0,total:t}}export{e as t};
