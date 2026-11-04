@@ -1,0 +1,1 @@
+import{i as e,l as t,r as n}from"./i18n-DV6vPCFf.js";var r=t();function i(){let{t}=n();return(0,r.jsxs)(`div`,{className:`wrap py-24 text-center`,children:[(0,r.jsx)(`h1`,{className:`mb-4 font-serif text-4xl text-[#F7F4FC]`,children:t(`notFound.title`)}),(0,r.jsx)(e,{to:`/`,hash:`store`,className:`btn btn-fill`,children:t(`product.back`)})]})}export{i as notFoundComponent};
