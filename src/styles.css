@@ -1,0 +1,132 @@
+@import "tailwindcss" source("../");
+
+@theme {
+  --color-obsidian: #0B0A10;
+  --color-secondary: #21182F;
+  --color-card: #21182F;
+  --color-accent: #7851D8;
+  --color-accent-hover: #8c67eb;
+  --color-lavender: #B99AF5;
+  --color-lavender-light: #d6c4fc;
+  --color-text-main: #F7F4FC;
+  --color-text-secondary: #B5ADC5;
+  --color-border: #49365D;
+
+  /* Aliases to map existing classes cleanly to Obsidian & Lavender */
+  --color-ivory: #0B0A10;
+  --color-cream: #21182F;
+  --color-gold: #7851D8;
+  --color-gold-light: #B99AF5;
+  --color-gold-deep: #B99AF5;
+  --color-ink: #F7F4FC;
+  --color-muted: #B5ADC5;
+  --color-line: #49365D;
+
+  --font-serif: "Cormorant Garamond", "Noto Serif Tamil", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", "Noto Sans Tamil", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #0B0A10;
+  color: #F7F4FC;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #7851D8;
+  color: #F7F4FC;
+}
+
+/* Tamil script needs a little more line height and less tracking. */
+html[lang="ta"] .eyebrow {
+  letter-spacing: 0.08em;
+}
+html[lang="ta"] h1,
+html[lang="ta"] h2 {
+  line-height: 1.3;
+}
+
+@layer components {
+  .wrap {
+    width: min(1160px, calc(100% - 40px));
+    margin-inline: auto;
+  }
+  .eyebrow {
+    color: #B99AF5;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid #49365D;
+    padding: 10px 20px;
+    border-radius: 6px;
+    color: #B99AF5;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    background: rgba(33, 24, 47, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+  }
+  .btn:hover {
+    background: #21182F;
+    border-color: #7851D8;
+    color: #F7F4FC;
+    box-shadow: 0 0 16px rgba(120, 81, 216, 0.2);
+  }
+  .btn-fill {
+    background: #7851D8;
+    border-color: #7851D8;
+    color: #F7F4FC;
+    box-shadow: 0 4px 14px rgba(120, 81, 216, 0.28);
+  }
+  .btn-fill:hover {
+    background: #8c67eb;
+    border-color: #8c67eb;
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(120, 81, 216, 0.4);
+    transform: translateY(-1px);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  .field {
+    border: 1px solid #49365D;
+    background: #140E20;
+    border-radius: 6px;
+    padding: 11px 14px;
+    color: #F7F4FC;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  @media (min-width: 768px) {
+    .field {
+      font-size: 14px;
+    }
+  }
+  .field:focus {
+    border-color: #7851D8;
+    box-shadow: 0 0 0 2px rgba(120, 81, 216, 0.25);
+  }
+  .field::placeholder {
+    color: #837996;
+  }
+}
