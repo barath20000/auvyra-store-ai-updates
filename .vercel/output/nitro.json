@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-05T01:11:29.705Z",
+  "date": "2026-11-05T02:47:13.168Z",
   "preset": "vercel",
   "envName": "production",
   "framework": {
@@ -20,8 +20,9 @@
       "skewProtection": false,
       "immutableStaticFiles": false,
       "cronHandlerRoute": "/_vercel/cron",
+      "entryFormat": "node",
       "functions": {
-        "runtime": "nodejs26.x"
+        "runtime": "nodejs22.x"
       }
     }
   }

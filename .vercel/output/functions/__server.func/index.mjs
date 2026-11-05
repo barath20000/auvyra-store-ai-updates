@@ -1,6 +1,7 @@
 globalThis.__nitro_main__ = import.meta.url;
 import { createRequire } from "node:module";
 import { PassThrough, Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
@@ -237,10 +238,686 @@ var init__url = __esmMin((() => {
 		return FastURL;
 	})();
 }));
+// node_modules/srvx/dist/body-limit.mjs
+function limitBodyStream(stream, maxRequestBodySize, options) {
+	const createError = options?.createError ?? createBodyTooLargeError;
+	const reader = stream.getReader();
+	let size = 0;
+	return new ReadableStream({
+		async pull(controller) {
+			const { done, value } = await reader.read();
+			if (done) {
+				controller.close();
+				return;
+			}
+			size += value.byteLength;
+			if (size > maxRequestBodySize) {
+				const error = createError(maxRequestBodySize);
+				reader.cancel(error).catch(() => {});
+				controller.error(error);
+				return;
+			}
+			controller.enqueue(value);
+		},
+		cancel(reason) {
+			return reader.cancel(reason);
+		}
+	});
+}
+function createBodyTooLargeError(maxRequestBodySize) {
+	return new BodyTooLargeError(`Request body exceeds the maximum allowed size of ${maxRequestBodySize} bytes.`);
+}
+var BodyTooLargeError;
+var init_body_limit = __esmMin((() => {
+	BodyTooLargeError = class extends Error {
+		code = "ERR_BODY_TOO_LARGE";
+		statusCode = 413;
+		status = 413;
+		statusText = "Content Too Large";
+		get name() {
+			return "HTTPError";
+		}
+		toJSON() {
+			return {
+				status: this.status,
+				statusText: this.statusText,
+				message: this.message
+			};
+		}
+	};
+}));
+// node_modules/srvx/dist/_chunks/_trust-proxy.mjs
+function isTrustedProxy(trustProxy, remoteAddress) {
+	if (trustProxy === void 0 || trustProxy === false) return false;
+	if (trustProxy === true) return true;
+	if (trustProxy === "loopback") return isLoopbackAddress(remoteAddress);
+	if (remoteAddress === void 0) return false;
+	if (trustProxy.includes(remoteAddress)) return true;
+	const mapped = ipv4FromMapped(remoteAddress);
+	return mapped !== void 0 && trustProxy.includes(mapped);
+}
+function ipv4FromMapped(address) {
+	return address.startsWith("::ffff:") && address.includes(".") ? address.slice(7) : void 0;
+}
+function isLoopbackAddress(address) {
+	return !!address && (address === "::1" || address.startsWith("127.") || address.startsWith("::ffff:127."));
+}
+function forwardedList(value) {
+	if (!value) return [];
+	const raw = Array.isArray(value) ? value.join(",") : value;
+	const out = [];
+	for (const part of raw.split(",")) {
+		const entry = part.trim();
+		if (entry) out.push(entry);
+	}
+	return out;
+}
+function resolveClientIP(trustProxy, peer, forwardedFor) {
+	if (!isTrustedProxy(trustProxy, peer)) return peer;
+	const list = forwardedList(forwardedFor);
+	for (let i = list.length - 1; i >= 0; i--) if (!isTrustedProxy(trustProxy, list[i])) return list[i];
+	return list.length > 0 ? list[0] : peer;
+}
+function trustedHops(trustProxy, peer, forwardedFor) {
+	if (!isTrustedProxy(trustProxy, peer)) return 0;
+	const list = forwardedList(forwardedFor);
+	let hops = 1;
+	for (let i = list.length - 1; i >= 0; i--) {
+		if (!isTrustedProxy(trustProxy, list[i])) return hops;
+		hops++;
+	}
+	return Number.POSITIVE_INFINITY;
+}
+function forwardedHopValue(value, hops) {
+	if (hops <= 0) return;
+	const list = forwardedList(value);
+	if (list.length === 0) return;
+	return list[Math.max(0, list.length - hops)];
+}
+var HOST_RE;
+var init__trust_proxy = __esmMin((() => {
+	HOST_RE = /^(\[(?:[A-Fa-f0-9:.]+)\]|(?:[A-Za-z0-9_-]+\.)*[A-Za-z0-9_-]+|(?:\d{1,3}\.){3}\d{1,3})(:\d{1,5})?$/;
+}));
 // node_modules/srvx/dist/adapters/node.mjs
-var kNativeResponse, NodeResponse;
+function sendNodeResponse(nodeRes, webRes) {
+	try {
+		return _sendNodeResponse(nodeRes, webRes, false) || Promise.resolve();
+	} catch (error) {
+		return Promise.reject(error);
+	}
+}
+function handleSendError(nodeRes, error, silent) {
+	if (!silent) console.error("[srvx] Failed to send response:", error);
+	failResponse(nodeRes);
+}
+function failResponse(nodeRes) {
+	if (nodeRes.writableEnded) return;
+	if (nodeRes.headersSent) nodeRes.destroy();
+	else {
+		nodeRes.statusCode = 500;
+		if (nodeRes.req?.httpVersion !== "2.0") nodeRes.statusMessage = "";
+		nodeRes.end();
+	}
+}
+function _sendNodeResponse(nodeRes, webRes, detached) {
+	if (!webRes) {
+		nodeRes.statusCode = 500;
+		return endNodeResponse(nodeRes, detached);
+	}
+	if (webRes._toNodeResponse) {
+		const res = webRes._toNodeResponse();
+		if (res.body) {
+			if (res.body instanceof ReadableStream) {
+				writeHead(nodeRes, res.status, res.statusText, res.headers);
+				return streamBody(res.body, nodeRes);
+			} else if (typeof res.body?.pipe === "function") return pipeBody(res.body, nodeRes, res.status, res.statusText, res.headers);
+			writeHead(nodeRes, res.status, res.statusText, res.headers);
+			nodeRes.write(res.body);
+		} else writeHead(nodeRes, res.status, res.statusText, res.headers);
+		return endNodeResponse(nodeRes, detached);
+	}
+	const rawHeaders = [];
+	for (const [key, value] of webRes.headers) rawHeaders.push(key, value);
+	writeHead(nodeRes, webRes.status, webRes.statusText, rawHeaders);
+	return webRes.body ? streamBody(webRes.body, nodeRes) : endNodeResponse(nodeRes, detached);
+}
+function writeHead(nodeRes, status, statusText, rawHeaders) {
+	if (!nodeRes.headersSent) {
+		if (nodeRes.req?.httpVersion === "2.0") nodeRes.writeHead(status, rawHeaders);
+		else nodeRes.writeHead(status, safeStatusText(statusText), rawHeaders);
+	}
+}
+function safeStatusText(statusText) {
+	return typeof statusText === "string" && statusText ? statusText.replace(INVALID_REASON_PHRASE_RE, "") : statusText;
+}
+function endNodeResponse(nodeRes, detached) {
+	if (detached) {
+		nodeRes.end();
+		return;
+	}
+	return new Promise((resolve) => nodeRes.end(resolve));
+}
+function pipeBody(stream, nodeRes, status, statusText, headers) {
+	if (nodeRes.destroyed) {
+		stream.destroy?.();
+		return;
+	}
+	if (nodeRes.req?.method === "HEAD") {
+		if (typeof stream.destroy === "function") stream.destroy();
+		else stream.abort?.();
+		writeHead(nodeRes, status, statusText, headers);
+		return endNodeResponse(nodeRes);
+	}
+	if (typeof stream.on !== "function" || typeof stream.destroy !== "function") {
+		writeHead(nodeRes, status, statusText, headers);
+		stream.pipe(nodeRes);
+		return new Promise((resolve) => nodeRes.on("close", resolve));
+	}
+	if (stream.readableEnded && !stream.errored) {
+		writeHead(nodeRes, status, statusText, headers);
+		return endNodeResponse(nodeRes);
+	}
+	if (stream.destroyed) {
+		writeHead(nodeRes, 500, "Internal Server Error", []);
+		return endNodeResponse(nodeRes);
+	}
+	return new Promise((resolve) => {
+		function cleanup() {
+			stream.off("error", onEarlyError);
+			stream.off("readable", onReadable);
+			stream.off("end", onEnd);
+			nodeRes.off("close", onResClose);
+		}
+		function onEarlyError() {
+			cleanup();
+			stream.destroy();
+			writeHead(nodeRes, 500, "Internal Server Error", []);
+			endNodeResponse(nodeRes).then(resolve);
+		}
+		function onReadable() {
+			cleanup();
+			if (nodeRes.destroyed) {
+				stream.destroy();
+				return resolve();
+			}
+			writeHead(nodeRes, status, statusText, headers);
+			pipeline(stream, nodeRes).catch(() => {}).then(() => resolve());
+		}
+		function onEnd() {
+			cleanup();
+			if (nodeRes.destroyed) return resolve();
+			writeHead(nodeRes, status, statusText, headers);
+			endNodeResponse(nodeRes).then(resolve);
+		}
+		function onResClose() {
+			cleanup();
+			stream.destroy();
+			resolve();
+		}
+		stream.once("error", onEarlyError);
+		stream.once("readable", onReadable);
+		stream.once("end", onEnd);
+		nodeRes.once("close", onResClose);
+	});
+}
+function streamBody(stream, nodeRes) {
+	if (nodeRes.destroyed) {
+		stream.cancel().catch(() => {});
+		return;
+	}
+	if (nodeRes.req?.method === "HEAD") {
+		stream.cancel().catch(() => {});
+		return endNodeResponse(nodeRes);
+	}
+	const reader = stream.getReader();
+	function streamCancel(error) {
+		reader.cancel(error).catch(() => {});
+		if (error) nodeRes.destroy(error);
+	}
+	function streamHandle({ done, value }) {
+		try {
+			if (done) nodeRes.end();
+			else if (nodeRes.write(value)) reader.read().then(streamHandle, streamCancel);
+			else nodeRes.once("drain", () => reader.read().then(streamHandle, streamCancel));
+		} catch (error) {
+			streamCancel(error instanceof Error ? error : void 0);
+		}
+	}
+	nodeRes.on("close", streamCancel);
+	nodeRes.on("error", streamCancel);
+	reader.read().then(streamHandle, streamCancel);
+	return reader.closed.catch(streamCancel).finally(() => {
+		nodeRes.off("close", streamCancel);
+		nodeRes.off("error", streamCancel);
+	});
+}
+function _isRepeated(rawHeaders, lowerName) {
+	let seen = false;
+	for (let i = 0; i < rawHeaders.length; i += 2) {
+		const key = rawHeaders[i];
+		if (key.length === lowerName.length && key.toLowerCase() === lowerName) {
+			if (seen) return true;
+			seen = true;
+		}
+	}
+	return false;
+}
+function bodyUnusable() {
+	return /* @__PURE__ */ new TypeError("Body is unusable: Body has already been read");
+}
+function abortError() {
+	return new DOMException("The request was aborted.", "AbortError");
+}
+function erroredStream(error) {
+	return new ReadableStream({ start(controller) {
+		controller.error(error);
+	} });
+}
+function isClientGone(req) {
+	return req.aborted || !!req.errored || req.destroyed && !req.complete;
+}
+function isBodySourceFinished(req) {
+	return isClientGone(req) || req.destroyed || req.readableEnded;
+}
+function readBody(req, maxRequestBodySize) {
+	if ("rawBody" in req && Buffer.isBuffer(req.rawBody)) {
+		if (maxRequestBodySize !== void 0 && req.rawBody.length > maxRequestBodySize) return Promise.reject(createBodyTooLargeError(maxRequestBodySize));
+		return Promise.resolve(req.rawBody);
+	}
+	return new Promise((resolve, reject) => {
+		const chunks = [];
+		let size = 0;
+		const cleanup = () => {
+			req.off("data", onData);
+			req.off("end", onEnd);
+			req.off("error", onError);
+			req.off("close", onClose);
+		};
+		const onData = (chunk) => {
+			if (maxRequestBodySize !== void 0) {
+				size += chunk.length;
+				if (size > maxRequestBodySize) {
+					cleanup();
+					req.pause?.();
+					reject(createBodyTooLargeError(maxRequestBodySize));
+					return;
+				}
+			}
+			chunks.push(chunk);
+		};
+		const onError = (err) => {
+			cleanup();
+			reject(err);
+		};
+		const onEnd = () => {
+			cleanup();
+			if (isClientGone(req)) {
+				reject(req.errored || abortError());
+				return;
+			}
+			resolve(chunks.length === 1 ? chunks[0] : Buffer.concat(chunks));
+		};
+		const onClose = () => {
+			cleanup();
+			reject(req.errored || abortError());
+		};
+		req.on("data", onData).once("end", onEnd).once("error", onError).once("close", onClose);
+	});
+}
+function toNodeHandler(handler, options) {
+	if (handler.__nodeHandler) return handler.__nodeHandler;
+	function convertedNodeHandler(nodeReq, nodeRes) {
+		const res = handler(new NodeRequest({
+			req: nodeReq,
+			res: nodeRes,
+			maxRequestBodySize: options?.maxRequestBodySize,
+			trustProxy: options?.trustProxy
+		}));
+		return typeof res?.then === "function" ? res.then((resolvedRes) => send(nodeRes, resolvedRes)) : send(nodeRes, res);
+	}
+	convertedNodeHandler.__fetchHandler = handler;
+	assignFnName(convertedNodeHandler, handler, " (converted to Node handler)");
+	return convertedNodeHandler;
+}
+function send(nodeRes, webRes) {
+	return sendNodeResponse(nodeRes, webRes).catch((error) => handleSendError(nodeRes, error));
+}
+function assignFnName(target, source, suffix) {
+	if (source.name) try {
+		Object.defineProperty(target, "name", { value: `${source.name}${suffix}` });
+	} catch {}
+}
+var INVALID_REASON_PHRASE_RE, NodeRequestURL, _nonJoinedHeaders, _validHeaderNameRE, NodeRequestHeaders, kNativeRequest, NodeRequest, kNativeResponse, NodeResponse;
 var init_node$1 = __esmMin((() => {
 	init__url();
+	init_body_limit();
+	init__trust_proxy();
+	INVALID_REASON_PHRASE_RE = /[^\t\u0020-\u007E\u0080-\u00FF]/g;
+	NodeRequestURL = class extends FastURL {
+		constructor({ req, hops = 0 }) {
+			const path = req.url || "/";
+			const trusted = hops > 0;
+			const forwardedHost = forwardedHopValue(req.headers["x-forwarded-host"], hops);
+			let host = (forwardedHost && HOST_RE.test(forwardedHost) ? forwardedHost : void 0) || req.headers.host || req.headers[":authority"];
+			if (host && !HOST_RE.test(host)) host = "_invalid_";
+			else if (!host) {
+				if (req.socket) host = `${req.socket.localFamily === "IPv6" ? "[" + req.socket.localAddress + "]" : req.socket.localAddress}:${req.socket?.localPort || "80"}`;
+				else host = "localhost";
+			}
+			const forwardedProto = forwardedHopValue(req.headers["x-forwarded-proto"], hops);
+			const protocol = req.socket?.encrypted || forwardedProto === "https" || trusted && req.headers[":scheme"] === "https" ? "https:" : "http:";
+			if (path[0] === "/") {
+				const qIndex = path.indexOf("?");
+				super({
+					protocol,
+					host,
+					pathname: qIndex === -1 ? path : path.slice(0, qIndex) || "/",
+					search: qIndex === -1 ? "" : path.slice(qIndex) || ""
+				});
+			} else if (path === "*") super({
+				protocol,
+				host,
+				pathname: "/*",
+				search: ""
+			});
+			else {
+				const target = URL.canParse(path) ? new URL(path) : void 0;
+				if (target) {
+					const targetHost = target.host;
+					const targetPath = target.pathname;
+					super({
+						protocol,
+						host: targetHost ? HOST_RE.test(targetHost) ? targetHost : "_invalid_" : host,
+						pathname: targetPath ? targetPath[0] === "/" ? targetPath : `/${targetPath}` : "/",
+						search: target.search
+					});
+				} else super({
+					protocol,
+					host,
+					pathname: "/",
+					search: ""
+				});
+			}
+		}
+	};
+	_nonJoinedHeaders = /* @__PURE__ */ new Set([
+		"age",
+		"authorization",
+		"content-length",
+		"content-type",
+		"etag",
+		"expires",
+		"from",
+		"host",
+		"if-modified-since",
+		"if-unmodified-since",
+		"last-modified",
+		"location",
+		"max-forwards",
+		"proxy-authorization",
+		"referer",
+		"retry-after",
+		"server",
+		"user-agent"
+	]);
+	_validHeaderNameRE = /^[!#$%&'*+\-.^_`|~\dA-Za-z]+$/;
+	NodeRequestHeaders = /* @__PURE__ */ (() => {
+		const NativeHeaders = globalThis.Headers;
+		class Headers {
+			#req;
+			#headers;
+			constructor(req) {
+				this.#req = req;
+			}
+			static [Symbol.hasInstance](val) {
+				return val instanceof NativeHeaders;
+			}
+			_adopt(headers) {
+				this.#headers = headers;
+			}
+			get _headers() {
+				if (!this.#headers) {
+					const headers = new NativeHeaders();
+					const rawHeaders = this.#req.rawHeaders;
+					const len = rawHeaders.length;
+					for (let i = 0; i < len; i += 2) {
+						const key = rawHeaders[i];
+						if (key.charCodeAt(0) === 58) continue;
+						const value = rawHeaders[i + 1];
+						headers.append(key, value);
+					}
+					this.#headers = headers;
+				}
+				return this.#headers;
+			}
+			get(name) {
+				if (this.#headers) return this.#headers.get(name);
+				const lower = name.toLowerCase();
+				if (lower.charCodeAt(0) === 58) return this._headers.get(name);
+				const value = this.#req.headers[lower];
+				if (typeof value === "string") return _nonJoinedHeaders.has(lower) && _isRepeated(this.#req.rawHeaders, lower) ? this._headers.get(name) : value;
+				if (Array.isArray(value)) return value.join(", ");
+				return lower !== "__proto__" && _validHeaderNameRE.test(name) ? null : this._headers.get(name);
+			}
+			has(name) {
+				if (this.#headers) return this.#headers.has(name);
+				const lower = name.toLowerCase();
+				if (lower.charCodeAt(0) === 58) return this._headers.has(name);
+				if (Object.hasOwn(this.#req.headers, lower)) return true;
+				return lower !== "__proto__" && _validHeaderNameRE.test(name) ? false : this._headers.has(name);
+			}
+			getSetCookie() {
+				if (this.#headers) return this.#headers.getSetCookie();
+				const value = this.#req.headers["set-cookie"];
+				return Array.isArray(value) ? value.slice() : value ? [value] : [];
+			}
+			entries() {
+				return this._headers.entries();
+			}
+			[Symbol.iterator]() {
+				return this.entries();
+			}
+		}
+		lazyInherit(Headers.prototype, NativeHeaders.prototype, "_headers");
+		Object.setPrototypeOf(Headers, NativeHeaders);
+		Object.setPrototypeOf(Headers.prototype, NativeHeaders.prototype);
+		return Headers;
+	})();
+	kNativeRequest = /* @__PURE__ */ Symbol.for("srvx.nativeRequest");
+	NodeRequest = /* @__PURE__ */ (() => {
+		const NativeRequest = getNativeClass(kNativeRequest, globalThis.Request);
+		class Request {
+			runtime;
+			waitUntil;
+			#req;
+			#url;
+			#bodyStream;
+			#bodyUsed = false;
+			#request;
+			#headers;
+			#abortController;
+			#maxRequestBodySize;
+			#trustProxy;
+			#ip;
+			#ipResolved = false;
+			#remoteAddress;
+			#remoteResolved = false;
+			#hops;
+			constructor(ctx) {
+				this.#req = ctx.req;
+				this.#maxRequestBodySize = ctx.maxRequestBodySize;
+				this.#trustProxy = ctx.trustProxy;
+				this.runtime = {
+					name: "node",
+					node: ctx
+				};
+			}
+			static [Symbol.hasInstance](val) {
+				return val instanceof NativeRequest;
+			}
+			#remoteAddr() {
+				if (!this.#remoteResolved) {
+					this.#remoteResolved = true;
+					this.#remoteAddress = this.#req.socket?.remoteAddress;
+				}
+				return this.#remoteAddress;
+			}
+			#resolveHops() {
+				if (this.#hops === void 0) this.#hops = trustedHops(this.#trustProxy, this.#remoteAddr(), this.#req.headers["x-forwarded-for"]);
+				return this.#hops;
+			}
+			get ip() {
+				if (this.#ipResolved) return this.#ip;
+				this.#ipResolved = true;
+				return this.#ip = resolveClientIP(this.#trustProxy, this.#remoteAddr(), this.#req.headers["x-forwarded-for"]);
+			}
+			get method() {
+				if (this.#request) return this.#request.method;
+				return this.#req.method || "GET";
+			}
+			get _url() {
+				return this.#url ||= new NodeRequestURL({
+					req: this.#req,
+					hops: this.#resolveHops()
+				});
+			}
+			set _url(url) {
+				this.#url = url;
+			}
+			get url() {
+				if (this.#request) return this.#request.url;
+				return this._url.href;
+			}
+			get headers() {
+				return this.#headers ||= new NodeRequestHeaders(this.#req);
+			}
+			get _abortController() {
+				if (!this.#abortController) {
+					this.#abortController = new AbortController();
+					const { req, res } = this.runtime.node;
+					const abortController = this.#abortController;
+					const abort = (err) => abortController.abort?.(err);
+					if (res) {
+						const onClose = () => {
+							const reqError = req.errored;
+							if (reqError) abort(reqError);
+							else if (!res.writableEnded) abort();
+						};
+						res.once("close", onClose);
+						if (res.destroyed || isClientGone(req)) onClose();
+					} else {
+						const onClose = () => {
+							if (!req.complete || req.aborted) abort();
+						};
+						req.once("close", onClose);
+						if (isClientGone(req)) onClose();
+					}
+				}
+				return this.#abortController;
+			}
+			get signal() {
+				return this.#request ? this.#request.signal : this._abortController.signal;
+			}
+			#hasBody() {
+				const method = this.method;
+				return method !== "GET" && method !== "HEAD";
+			}
+			get body() {
+				if (this.#request) return this.#request.body;
+				if (this.#bodyStream === void 0) {
+					let stream = null;
+					if (this.#hasBody() && !this.#bodyUsed) {
+						if ("rawBody" in this.#req && Buffer.isBuffer(this.#req.rawBody)) stream = Readable.toWeb(Readable.from([this.#req.rawBody]));
+						else if (isBodySourceFinished(this.#req)) stream = erroredStream(this.#bodyError());
+						else stream = Readable.toWeb(this.#req);
+					}
+					if (stream && this.#maxRequestBodySize !== void 0) stream = limitBodyStream(stream, this.#maxRequestBodySize);
+					this.#bodyStream = stream;
+				}
+				return this.#bodyStream;
+			}
+			get bodyUsed() {
+				if (this.#isBodyUsed()) return true;
+				return this.#request ? this.#request.bodyUsed : false;
+			}
+			#isBodyUsed() {
+				if (!this.#bodyUsed && this.#bodyStream && Readable.isDisturbed(this.#bodyStream)) this.#bodyUsed = true;
+				return this.#bodyUsed;
+			}
+			#bodyError() {
+				const signal = this._abortController.signal;
+				if (signal.aborted) return signal.reason;
+				return this.#req.errored || (isClientGone(this.#req) ? abortError() : bodyUnusable());
+			}
+			#readBuffered() {
+				if ("rawBody" in this.#req && Buffer.isBuffer(this.#req.rawBody)) return readBody(this.#req, this.#maxRequestBodySize);
+				if (isBodySourceFinished(this.#req)) return Promise.reject(this.#bodyError());
+				return readBody(this.#req, this.#maxRequestBodySize);
+			}
+			text() {
+				if (this.#isBodyUsed()) return Promise.reject(bodyUnusable());
+				if (this.#request) return this.#request.text();
+				if (!this.#hasBody()) return Promise.resolve("");
+				this.#bodyUsed = true;
+				if (this.#bodyStream !== void 0) try {
+					return new Response(this.#bodyStream).text();
+				} catch (error) {
+					return Promise.reject(error);
+				}
+				return this.#readBuffered().then((buf) => buf.toString());
+			}
+			json() {
+				if (this.#isBodyUsed()) return Promise.reject(bodyUnusable());
+				if (this.#request) return this.#request.json();
+				if (!this.#hasBody()) return Promise.resolve().then(() => JSON.parse(""));
+				this.#bodyUsed = true;
+				if (this.#bodyStream !== void 0) try {
+					return new Response(this.#bodyStream).json();
+				} catch (error) {
+					return Promise.reject(error);
+				}
+				return this.#readBuffered().then((buf) => JSON.parse(buf.toString()));
+			}
+			arrayBuffer() {
+				return this.#consumeNative("arrayBuffer");
+			}
+			bytes() {
+				return this.#consumeNative("bytes");
+			}
+			blob() {
+				return this.#consumeNative("blob");
+			}
+			formData() {
+				return this.#consumeNative("formData");
+			}
+			#consumeNative(method) {
+				if (this.#isBodyUsed()) return Promise.reject(bodyUnusable());
+				try {
+					return this._request[method]();
+				} catch (error) {
+					return Promise.reject(error);
+				}
+			}
+			get _request() {
+				if (!this.#request) {
+					const body = this.#isBodyUsed() ? null : this.body;
+					this.#request = new NativeRequest(this.url, {
+						method: this.method,
+						headers: this.headers,
+						signal: this._abortController.signal,
+						body,
+						duplex: body ? "half" : void 0
+					});
+					this.#headers._adopt(this.#request.headers);
+					this.#bodyStream = void 0;
+				}
+				return this.#request;
+			}
+		}
+		lazyInherit(Request.prototype, NativeRequest.prototype, "_request");
+		Object.setPrototypeOf(Request.prototype, NativeRequest.prototype);
+		return Request;
+	})();
 	kNativeResponse = /* @__PURE__ */ Symbol.for("srvx.nativeResponse");
 	NodeResponse = /* @__PURE__ */ (() => {
 		const NativeResponse = getNativeClass(kNativeResponse, globalThis.Response);
@@ -58997,22 +59674,30 @@ function markUntraced(middleware) {
 	middleware.__traced__ = true;
 	return middleware;
 }
-// node_modules/nitro/dist/presets/vercel/runtime/vercel.web.mjs
+// node_modules/nitro/dist/presets/vercel/runtime/vercel.node.mjs
+init_node$1();
+var REQUEST_CONTEXT_SYMBOL = Symbol.for("@vercel/request-context");
 var nitroApp = useNitroApp();
-var vercel_web_default = { async fetch(req, context) {
-	const isrURL = isrRouteRewrite(req.url, req.headers.get("x-now-route-matches"));
+var handler = toNodeHandler((req) => {
+	const context = globalThis[REQUEST_CONTEXT_SYMBOL]?.get?.();
+	if (context) {
+		req.runtime ??= { name: "vercel" };
+		req.runtime.vercel = { context };
+		req.waitUntil = context.waitUntil;
+	}
+	return nitroApp.fetch(req);
+});
+async function nodeHandler(req, res) {
+	let ip;
+	Object.defineProperty(req.socket, "remoteAddress", { get() {
+		const h = req.headers["x-forwarded-for"];
+		return ip ??= h?.split?.(",").shift()?.trim();
+	} });
+	const isrURL = isrRouteRewrite(req.url, req.headers["x-now-route-matches"]);
 	if (isrURL) {
 		const { routeRules } = getRouteRules("", isrURL[0]);
-		if (routeRules?.isr) req = new Request(new URL(isrURL[0] + (isrURL[1] ? `?${isrURL[1]}` : ""), req.url).href, req);
+		if (routeRules?.isr) req.url = isrURL[0] + (isrURL[1] ? `?${isrURL[1]}` : "");
 	}
-	req.runtime ??= { name: "vercel" };
-	req.runtime.vercel = { context };
-	let ip;
-	Object.defineProperty(req, "ip", { get() {
-		const h = req.headers.get("x-forwarded-for");
-		return ip ??= h?.split(",").shift()?.trim();
-	} });
-	req.waitUntil = context?.waitUntil;
-	return nitroApp.fetch(req);
-} };
-export { vercel_web_default as default };
+	return handler(req, res);
+}
+export { nodeHandler as default };

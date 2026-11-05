@@ -29,6 +29,12 @@ export default defineConfig(({ command }) => {
       nitro({
         preset: isVercel ? 'vercel' : (process.env.NITRO_PRESET || undefined),
         inlineDynamicImports: true,
+        vercel: {
+          entryFormat: 'node',
+          functions: {
+            runtime: 'nodejs22.x',
+          },
+        },
       }),
       viteReact(),
     ],
