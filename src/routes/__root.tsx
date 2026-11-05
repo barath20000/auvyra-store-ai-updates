@@ -1,3 +1,4 @@
+
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
@@ -50,7 +51,20 @@ export const Route = createRootRoute({
       },
     ],
     links: [
-      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      {
+        rel: 'icon',
+        href: '/auvyra-logo.png',
+        type: 'image/png',
+      },
+      {
+        rel: 'icon',
+        href: '/favicon.svg',
+        type: 'image/svg+xml',
+      },
+      {
+        rel: 'apple-touch-icon',
+        href: '/auvyra-logo.png',
+      },
       { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
       {
         rel: 'preconnect',
