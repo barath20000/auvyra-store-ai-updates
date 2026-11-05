@@ -1,3 +1,4 @@
+
 import { Link } from '@tanstack/react-router'
 import { ShoppingBag } from 'lucide-react'
 import { Logo } from './Logo'
@@ -66,7 +67,7 @@ export function Header() {
       </div>
 
       {/* Mobile navigation bar */}
-      <nav className="wrap flex justify-center gap-8 border-t border-[#49365D]/60 py-2.5 text-[13px] text-[#B5ADC5] md:hidden">
+      <nav className="wrap flex justify-center gap-6 border-t border-[#49365D]/60 py-2.5 text-[13px] text-[#B5ADC5] md:hidden">
         <NavLinks />
       </nav>
     </header>
@@ -75,6 +76,7 @@ export function Header() {
 
 function NavLinks() {
   const { t } = useLanguage()
+
   return (
     <>
       <Link
@@ -84,6 +86,7 @@ function NavLinks() {
       >
         {t('nav.store')}
       </Link>
+
       <Link
         to="/"
         hash="about"
@@ -91,6 +94,7 @@ function NavLinks() {
       >
         {t('nav.about')}
       </Link>
+
       <Link
         to="/"
         hash="contact"
@@ -98,6 +102,13 @@ function NavLinks() {
       >
         {t('nav.contact')}
       </Link>
+
+      <a
+        href="/admin"
+        className="font-medium text-[#D6B56D] transition-colors hover:text-[#F7DFA5]"
+      >
+        Admin Login
+      </a>
     </>
   )
 }
