@@ -201,7 +201,8 @@ export function AdminPage() {
         setLoginError(res.error || 'Invalid credentials. Please verify your email and password.')
       }
     } catch (err: any) {
-      setLoginError('Authentication service unreachable. Please try again.')
+      console.error('Admin login client exception:', err)
+      setLoginError(err?.message || 'Authentication service unreachable. Please try again.')
     } finally {
       setLoggingIn(false)
     }

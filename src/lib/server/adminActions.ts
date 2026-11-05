@@ -13,8 +13,73 @@ import {
   type StoredOrder,
 } from './adminDb'
 import products, { categories } from '@/data/products'
+import { getSupabaseConfig, getSupabaseServerClient } from '../supabase'
 
-// Login Action
+/**
+ * Universal admin session validator:
+ * Validates either Supabase Auth JWT tokens or local session tokens.
+ */
+async function verifyAnyAdminSession(
+  token?: string,
+): Promise<{ adminId: string; email: string; name: string } | null> {
+  if (!token) return null
+
+  // 1. Check if token is a Supabase JWT (starts with 'ey' and has periods)
+  if (token.startsWith('ey') && token.includes('.')) {
+    const supabase = getSupabaseServerClient()
+    if (supabase) {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser(token)
+
+        if (!error && user) {
+          const userEmail = (user.email || '').toLowerCase()
+          const isAuthorizedEmail =
+            userEmail === 'vsbarathsudhakar@gmail.com' ||
+            userEmail === 'kaviravi1905@gmail.com' ||
+            userEmail.endsWith('@auvyra.com')
+
+          const { data: adminRecord } = await supabase
+            .from('admin_users')
+            .select('full_name, role, is_active')
+            .eq('id', user.id)
+            .single()
+
+          if (adminRecord?.is_active || (!adminRecord && isAuthorizedEmail)) {
+            const adminName =
+              adminRecord?.full_name ||
+              user.user_metadata?.full_name ||
+              (userEmail.includes('barath') ? 'Barath' : 'Kavi')
+
+            return {
+              adminId: user.id,
+              email: userEmail,
+              name: adminName,
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error verifying Supabase JWT session:', err)
+      }
+    }
+  }
+
+  // 2. Fallback to local session table
+  const local = verifySession(token)
+  if (local) {
+    return {
+      adminId: local.adminId,
+      email: local.email,
+      name: local.name,
+    }
+  }
+
+  return null
+}
+
+// Login Action (Supabase Auth first with resilient local fallback)
 export const adminLoginServerFn = createServerFn({ method: 'POST' })
   .validator(
     z.object({
@@ -23,18 +88,83 @@ export const adminLoginServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { email, password } }) => {
-    const auth = authenticateAdmin(email, password)
-    if (!auth) {
-      return { success: false, error: 'Invalid administrator email or password.' }
-    }
-    return {
-      success: true,
-      token: auth.token,
-      admin: {
-        id: auth.user.id,
-        email: auth.user.email,
-        name: auth.user.name,
-      },
+    try {
+      const normalizedEmail = email.trim().toLowerCase()
+      const supabaseConfig = getSupabaseConfig()
+      const supabase = getSupabaseServerClient()
+
+      // 1. Attempt Supabase Auth when credentials are provided in environment
+      if (supabaseConfig.isConfigured && supabase) {
+        try {
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          })
+
+          if (!authError && authData.session && authData.user) {
+            const isAuthorizedEmail =
+              normalizedEmail === 'vsbarathsudhakar@gmail.com' ||
+              normalizedEmail === 'kaviravi1905@gmail.com' ||
+              normalizedEmail.endsWith('@auvyra.com')
+
+            // Fetch public.admin_users role
+            const { data: adminRecord } = await supabase
+              .from('admin_users')
+              .select('id, email, full_name, role, is_active')
+              .eq('id', authData.user.id)
+              .single()
+
+            if (adminRecord?.is_active || (!adminRecord && isAuthorizedEmail)) {
+              const adminName =
+                adminRecord?.full_name ||
+                authData.user.user_metadata?.full_name ||
+                (normalizedEmail.includes('barath') ? 'Barath' : 'Kavi')
+
+              return {
+                success: true,
+                token: authData.session.access_token,
+                admin: {
+                  id: authData.user.id,
+                  email: authData.user.email || normalizedEmail,
+                  name: adminName,
+                },
+              }
+            } else {
+              return {
+                success: false,
+                error: 'Account authenticated, but administrator privileges are inactive.',
+              }
+            }
+          }
+        } catch (supErr: any) {
+          console.warn('Supabase Auth error (attempting local fallback):', supErr?.message)
+        }
+      }
+
+      // 2. Fallback to local admin credentials (e.g. for bootstrap/initial account)
+      const auth = authenticateAdmin(normalizedEmail, password)
+      if (auth) {
+        return {
+          success: true,
+          token: auth.token,
+          admin: {
+            id: auth.user.id,
+            email: auth.user.email,
+            name: auth.user.name,
+          },
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Invalid administrator email or password. Please verify your credentials.',
+      }
+    } catch (err: any) {
+      console.error('Unhandled admin login error:', err)
+      return {
+        success: false,
+        error: err.message || 'Authentication service error. Please try again.',
+      }
     }
   })
 
@@ -46,20 +176,26 @@ export const adminVerifySessionServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token } }) => {
-    const session = verifySession(token)
-    if (!session) {
+    try {
+      const session = await verifyAnyAdminSession(token)
+      if (!session) {
+        return { valid: false }
+      }
+
+      const db = readDatabase()
+      const activeSessionsCount = Math.max(1, Object.keys(db.sessions).length)
+      return {
+        valid: true,
+        admin: {
+          id: session.adminId,
+          email: session.email,
+          name: session.name,
+        },
+        activeSessionsCount,
+      }
+    } catch (err) {
+      console.error('Error verifying admin session:', err)
       return { valid: false }
-    }
-    const db = readDatabase()
-    const activeSessionsCount = Object.keys(db.sessions).length
-    return {
-      valid: true,
-      admin: {
-        id: session.adminId,
-        email: session.email,
-        name: session.name,
-      },
-      activeSessionsCount,
     }
   })
 
@@ -71,7 +207,17 @@ export const adminLogoutServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token } }) => {
-    logoutSession(token)
+    try {
+      if (token.startsWith('ey') && token.includes('.')) {
+        const supabase = getSupabaseServerClient()
+        if (supabase) {
+          await supabase.auth.admin.signOut(token).catch(() => {})
+        }
+      }
+      logoutSession(token)
+    } catch (err) {
+      console.warn('Logout cleanup notice:', err)
+    }
     return { success: true }
   })
 
@@ -83,7 +229,7 @@ export const adminGetDashboardDataServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       throw new Error('Unauthorized administrator access')
     }
@@ -123,7 +269,7 @@ export const adminPollSyncServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token, clientVersion } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       return { authorized: false, hasUpdate: false, serverVersion: 0 }
     }
@@ -171,7 +317,7 @@ export const adminSaveProductServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token, product } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       throw new Error('Unauthorized administrator access')
     }
@@ -254,7 +400,7 @@ export const adminDeleteProductServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token, productId } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       throw new Error('Unauthorized administrator access')
     }
@@ -287,7 +433,7 @@ export const adminUpdateStockServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token, productId, newStock } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       throw new Error('Unauthorized administrator access')
     }
@@ -325,7 +471,7 @@ export const adminUpdateOrderStatusServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token, orderId, paymentStatus, shippingStatus } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       throw new Error('Unauthorized administrator access')
     }
@@ -368,7 +514,7 @@ export const adminUploadFileServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token, productId, fileType, fileName, base64Data } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       throw new Error('Unauthorized administrator access')
     }
@@ -428,7 +574,7 @@ export const adminDownloadPdfServerFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data: { token, fileName } }) => {
-    const session = verifySession(token)
+    const session = await verifyAnyAdminSession(token)
     if (!session) {
       throw new Error('Unauthorized administrator access')
     }

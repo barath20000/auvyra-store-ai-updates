@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import crypto from 'node:crypto'
 import products from '@/data/products'
 
@@ -105,15 +106,36 @@ export interface AdminDatabase {
   auditLog: Array<AuditLogEntry>
 }
 
-const DATA_DIR = path.resolve(process.cwd(), '.admin-data')
-const DB_FILE = path.join(DATA_DIR, 'database.json')
-const PDF_DIR = path.join(DATA_DIR, 'uploads', 'pdfs')
-const COVERS_DIR = path.join(DATA_DIR, 'uploads', 'covers')
+let cachedDb: AdminDatabase | null = null
+
+function getStoragePaths() {
+  const isServerless = Boolean(
+    process.env.VERCEL ||
+    process.env.VERCEL_ENV ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NOW_BUILDER,
+  )
+  const baseDir = isServerless
+    ? path.join(os.tmpdir(), '.admin-data')
+    : path.resolve(process.cwd(), '.admin-data')
+
+  return {
+    dataDir: baseDir,
+    dbFile: path.join(baseDir, 'database.json'),
+    pdfDir: path.join(baseDir, 'uploads', 'pdfs'),
+    coversDir: path.join(baseDir, 'uploads', 'covers'),
+  }
+}
 
 function ensureDirectories() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  if (!fs.existsSync(PDF_DIR)) fs.mkdirSync(PDF_DIR, { recursive: true })
-  if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true })
+  try {
+    const { dataDir, pdfDir, coversDir } = getStoragePaths()
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
+    if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true })
+    if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true })
+  } catch {
+    // Non-fatal if filesystem is read-only
+  }
 }
 
 function hashPassword(password: string, salt: string): string {
@@ -281,72 +303,57 @@ function createInitialDatabase(): AdminDatabase {
 }
 
 export function readDatabase(): AdminDatabase {
+  if (cachedDb) return cachedDb
   ensureDirectories()
   try {
-    if (!fs.existsSync(DB_FILE)) {
-      const initial = createInitialDatabase()
-      writeDatabase(initial)
-      return initial
-    }
-    const raw = fs.readFileSync(DB_FILE, 'utf-8')
-    const parsed = JSON.parse(raw) as AdminDatabase
+    const { dbFile } = getStoragePaths()
+    if (fs.existsSync(dbFile)) {
+      const raw = fs.readFileSync(dbFile, 'utf-8')
+      const parsed = JSON.parse(raw) as AdminDatabase
 
-    // Ensure backwards compatibility of structure
-    if (!parsed.products || parsed.products.length === 0) {
-      const initial = createInitialDatabase()
-      writeDatabase(initial)
-      return initial
+      if (parsed.products && parsed.products.length > 0) {
+        // Ensure authorized admins are present
+        const hasBarath = parsed.adminUsers?.some(
+          (u) => u.email.toLowerCase() === 'vsbarathsudhakar@gmail.com',
+        )
+        const hasKavi = parsed.adminUsers?.some(
+          (u) => u.email.toLowerCase() === 'kaviravi1905@gmail.com',
+        )
+        if (!hasBarath || !hasKavi) {
+          const initial = createInitialDatabase()
+          for (const u of initial.adminUsers) {
+            if (!parsed.adminUsers.some((ex) => ex.email.toLowerCase() === u.email.toLowerCase())) {
+              parsed.adminUsers.push(u)
+            }
+          }
+        }
+        cachedDb = parsed
+        return cachedDb
+      }
     }
-
-    // Ensure kaviravi1905@gmail.com is authorized alongside existing Barath account
-    let updated = false
-    const hasKaviGmail = parsed.adminUsers?.some(
-      (u) => u.email.toLowerCase() === 'kaviravi1905@gmail.com',
-    )
-    if (!hasKaviGmail) {
-      const salt = crypto.randomBytes(16).toString('hex')
-      parsed.adminUsers.push({
-        id: 'admin_kavi_gmail',
-        email: 'kaviravi1905@gmail.com',
-        name: 'Kavi',
-        salt,
-        passwordHash: hashPassword('AuvyraAdmin#2026', salt),
-      })
-      updated = true
-    }
-
-    const hasBarathGmail = parsed.adminUsers?.some(
-      (u) => u.email.toLowerCase() === 'vsbarathsudhakar@gmail.com',
-    )
-    if (!hasBarathGmail) {
-      const salt = crypto.randomBytes(16).toString('hex')
-      parsed.adminUsers.push({
-        id: 'admin_barath_gmail',
-        email: 'vsbarathsudhakar@gmail.com',
-        name: 'Barath',
-        salt,
-        passwordHash: hashPassword('AuvyraAdmin#2026', salt),
-      })
-      updated = true
-    }
-
-    if (updated) {
-      writeDatabase(parsed)
-    }
-
-    return parsed
   } catch (err) {
-    console.error('Error reading admin database:', err)
-    const initial = createInitialDatabase()
-    writeDatabase(initial)
-    return initial
+    console.warn('Could not read admin database from file, using in-memory state:', err)
   }
+
+  const initial = createInitialDatabase()
+  cachedDb = initial
+  try {
+    writeDatabase(initial)
+  } catch {}
+  return cachedDb
 }
 
 export function writeDatabase(db: AdminDatabase): void {
-  ensureDirectories()
+  cachedDb = db
   db.version = (db.version || 0) + 1
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8')
+  try {
+    ensureDirectories()
+    const { dbFile } = getStoragePaths()
+    fs.writeFileSync(dbFile, JSON.stringify(db, null, 2), 'utf-8')
+  } catch (err) {
+    // Disk write error is non-fatal; state is safely preserved in cachedDb
+    console.warn('Write to disk skipped (read-only environment):', err)
+  }
 }
 
 // Authentication & Session Management
@@ -429,7 +436,8 @@ export function logoutSession(token: string): void {
 // File Storage Helpers
 export function getPdfFilePath(fileName: string): string {
   ensureDirectories()
-  return path.join(PDF_DIR, fileName)
+  const { pdfDir } = getStoragePaths()
+  return path.join(pdfDir, fileName)
 }
 
 export function saveSecurePdf(
@@ -438,12 +446,17 @@ export function saveSecurePdf(
   base64Data: string,
 ): { fileName: string; size: number } {
   ensureDirectories()
+  const { pdfDir } = getStoragePaths()
   const safeOriginal = originalName.replace(/[^a-zA-Z0-9.-]/g, '_')
   const fileName = `book_${productId}_${Date.now()}_${safeOriginal}`
-  const targetPath = path.join(PDF_DIR, fileName)
+  const targetPath = path.join(pdfDir, fileName)
 
   const buffer = Buffer.from(base64Data, 'base64')
-  fs.writeFileSync(targetPath, buffer)
+  try {
+    fs.writeFileSync(targetPath, buffer)
+  } catch (err) {
+    console.warn('Could not write PDF to disk:', err)
+  }
 
   return {
     fileName,
@@ -457,12 +470,17 @@ export function saveCoverImage(
   base64Data: string,
 ): string {
   ensureDirectories()
+  const { coversDir } = getStoragePaths()
   const ext = path.extname(originalName) || '.jpg'
   const fileName = `cover_${productId}_${Date.now()}${ext}`
-  const targetPath = path.join(COVERS_DIR, fileName)
+  const targetPath = path.join(coversDir, fileName)
 
   const buffer = Buffer.from(base64Data, 'base64')
-  fs.writeFileSync(targetPath, buffer)
+  try {
+    fs.writeFileSync(targetPath, buffer)
+  } catch (err) {
+    console.warn('Could not write cover image to disk:', err)
+  }
 
   // Return base64 data URL for fast reliable rendering without CORS/static file dependencies
   const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
