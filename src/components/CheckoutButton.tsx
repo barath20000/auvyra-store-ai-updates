@@ -1,3 +1,4 @@
+
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, ShoppingBag } from 'lucide-react'
 import type { BookEdition } from '@/data/products'
@@ -30,7 +31,7 @@ export function CheckoutButton({
         type="button"
         disabled={items.length === 0}
         onClick={handleCheckout}
-        className="btn btn-fill w-full gap-2 !py-3 font-medium shadow-md transition-all hover:shadow-[0_4px_16px_rgba(120,81,216,0.35)]"
+        className="btn btn-fill w-full gap-2 !py-3 font-medium shadow-md transition-all hover:shadow-[0_4px_16px_rgba(214,181,109,0.35)]"
       >
         <ShoppingBag size={16} />
         <span>{label}</span>
