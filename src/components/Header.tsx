@@ -11,13 +11,13 @@ export function Header() {
   const { cartCount } = useStore()
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#49365D] bg-[#0B0A10]/90 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-[#B9954D]/40 bg-[#302044]/95 text-[#F7F3EA] backdrop-blur-md">
       <div className="wrap flex min-h-[64px] items-center justify-between gap-3 md:min-h-[74px] md:gap-4">
         <Link to="/" aria-label="AUVYRA home" className="transition-opacity hover:opacity-90">
           <Logo />
         </Link>
 
-        <nav className="hidden items-center gap-8 text-[13px] tracking-wide text-[#B5ADC5] md:flex">
+        <nav className="hidden items-center gap-8 text-[13px] tracking-wide text-[#F0EADF] md:flex">
           <NavLinks />
         </nav>
 
@@ -26,7 +26,7 @@ export function Header() {
           <div
             role="group"
             aria-label="Language selection"
-            className="flex overflow-hidden rounded-md border border-[#49365D] bg-[#21182F] text-xs"
+            className="flex overflow-hidden rounded-md border border-[#D6B56D]/50 bg-[#241832] text-xs"
           >
             {(
               [
@@ -41,8 +41,8 @@ export function Header() {
                 aria-pressed={lang === code}
                 className={`px-3 py-1.5 font-medium transition-all ${
                   lang === code
-                    ? 'bg-[#7851D8] text-[#F7F4FC] shadow-sm'
-                    : 'text-[#B5ADC5] hover:bg-[#2c203f] hover:text-[#F7F4FC]'
+                    ? 'bg-[#D6B56D] text-[#302044] shadow-sm'
+                    : 'text-[#F0EADF] hover:bg-[#49365D] hover:text-white'
                 }`}
               >
                 {label}
@@ -54,11 +54,11 @@ export function Header() {
           <Link
             to="/cart"
             aria-label={`${t('nav.cart')} (${cartCount})`}
-            className="relative flex h-[38px] w-[42px] items-center justify-center rounded-md border border-[#49365D] bg-[#21182F]/70 text-[#B99AF5] transition-all hover:border-[#7851D8] hover:bg-[#21182F] hover:text-[#F7F4FC] hover:shadow-[0_0_12px_rgba(120,81,216,0.3)]"
+            className="relative flex h-[38px] w-[42px] items-center justify-center rounded-md border border-[#D6B56D]/60 bg-[#49365D] text-[#F0EADF] transition-all hover:border-[#E8D5A5] hover:bg-[#5A426F] hover:text-white"
           >
             <ShoppingBag size={18} strokeWidth={1.7} />
             {cartCount > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#7851D8] px-1 text-[10px] font-bold text-[#F7F4FC] shadow-sm">
+              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#D6B56D] px-1 text-[10px] font-bold text-[#302044] shadow-sm">
                 {cartCount}
               </span>
             )}
@@ -67,7 +67,7 @@ export function Header() {
       </div>
 
       {/* Mobile navigation bar */}
-      <nav className="wrap flex justify-center gap-6 border-t border-[#49365D]/60 py-2.5 text-[13px] text-[#B5ADC5] md:hidden">
+      <nav className="wrap flex justify-center gap-6 border-t border-[#D6B56D]/30 py-2.5 text-[13px] text-[#F0EADF] md:hidden">
         <NavLinks />
       </nav>
     </header>
@@ -82,7 +82,7 @@ function NavLinks() {
       <Link
         to="/"
         hash="store"
-        className="transition-colors hover:text-[#B99AF5]"
+        className="transition-colors hover:text-[#E8D5A5]"
       >
         {t('nav.store')}
       </Link>
@@ -90,7 +90,7 @@ function NavLinks() {
       <Link
         to="/"
         hash="about"
-        className="transition-colors hover:text-[#B99AF5]"
+        className="transition-colors hover:text-[#E8D5A5]"
       >
         {t('nav.about')}
       </Link>
@@ -98,17 +98,18 @@ function NavLinks() {
       <Link
         to="/"
         hash="contact"
-        className="transition-colors hover:text-[#B99AF5]"
+        className="transition-colors hover:text-[#E8D5A5]"
       >
         {t('nav.contact')}
       </Link>
 
       <a
         href="/admin"
-        className="font-medium text-[#D6B56D] transition-colors hover:text-[#F7DFA5]"
+        className="font-medium text-[#E8D5A5] transition-colors hover:text-white"
       >
         Admin Login
       </a>
     </>
   )
 }
+
