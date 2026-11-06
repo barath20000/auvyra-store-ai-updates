@@ -1,9 +1,11 @@
+
 import { LogoMark } from './Logo'
 import { useLanguage } from '@/lib/i18n'
 import { WHATSAPP_DISPLAY, whatsappLink } from '@/lib/site'
 
 export function Footer() {
   const { t } = useLanguage()
+
   return (
     <footer className="border-t border-[#49365D] bg-[#0B0A10] py-9 text-[12px] text-[#B5ADC5]">
       <div className="wrap flex flex-wrap items-center justify-between gap-5">
@@ -12,11 +14,27 @@ export function Footer() {
           AUVYRA
         </span>
 
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-5">
+          <a
+            href={`mailto:auvyra.info@gmail.com`}
+            className="transition-colors hover:text-[#B99AF5]"
+          >
+            Email Support · auvyra.info@gmail.com
+          </a>
+
+          <a
+            href="https://www.instagram.com/auvyra.info/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-[#B99AF5]"
+          >
+            Instagram · @auvyra.info
+          </a>
+
           <a
             href={whatsappLink()}
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             className="transition-colors hover:text-[#B99AF5]"
           >
             WhatsApp Support · {WHATSAPP_DISPLAY}
@@ -30,4 +48,3 @@ export function Footer() {
     </footer>
   )
 }
-
