@@ -47,7 +47,7 @@ export const Route = createRootRoute({
       },
       {
         name: 'theme-color',
-        content: '#0B0A10',
+        content: '#302044',
       },
     ],
     links: [
@@ -83,11 +83,11 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-screen bg-[#0B0A10] text-[#F7F4FC] antialiased">
+      <body className="min-h-screen bg-[#F7F3EA] text-[#30263A] antialiased">
         <LanguageProvider>
           <StoreProvider>
             <Header />
