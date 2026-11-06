@@ -1,26 +1,28 @@
+
 @import "tailwindcss" source("../");
 
 @theme {
-  --color-obsidian: #0B0A10;
-  --color-secondary: #21182F;
-  --color-card: #21182F;
-  --color-accent: #7851D8;
-  --color-accent-hover: #8c67eb;
-  --color-lavender: #B99AF5;
-  --color-lavender-light: #d6c4fc;
-  --color-text-main: #F7F4FC;
-  --color-text-secondary: #B5ADC5;
-  --color-border: #49365D;
+  /* AUVYRA Premium Luxury Palette */
+  --color-obsidian: #49316D;
+  --color-secondary: #EEE8F2;
+  --color-card: #FFFFFF;
+  --color-accent: #D6B56D;
+  --color-accent-hover: #C4A052;
+  --color-lavender: #49316D;
+  --color-lavender-light: #70558F;
+  --color-text-main: #30263A;
+  --color-text-secondary: #756B7D;
+  --color-border: #E5D9C5;
 
-  /* Aliases to map existing classes cleanly to Obsidian & Lavender */
-  --color-ivory: #0B0A10;
-  --color-cream: #21182F;
-  --color-gold: #7851D8;
-  --color-gold-light: #B99AF5;
-  --color-gold-deep: #B99AF5;
-  --color-ink: #F7F4FC;
-  --color-muted: #B5ADC5;
-  --color-line: #49365D;
+  /* Existing color aliases */
+  --color-ivory: #F7F3EA;
+  --color-cream: #F0EADF;
+  --color-gold: #D6B56D;
+  --color-gold-light: #E8D5A5;
+  --color-gold-deep: #B9954D;
+  --color-ink: #30263A;
+  --color-muted: #756B7D;
+  --color-line: #E5D9C5;
 
   --font-serif: "Cormorant Garamond", "Noto Serif Tamil", Georgia, "Times New Roman", serif;
   --font-sans: "Inter", "Noto Sans Tamil", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -28,27 +30,28 @@
 
 html {
   scroll-behavior: smooth;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
   margin: 0;
-  background-color: #0B0A10;
-  color: #F7F4FC;
+  background-color: #F7F3EA;
+  color: #30263A;
   font-family: var(--font-sans);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: #7851D8;
-  color: #F7F4FC;
+  background: #D6B56D;
+  color: #30263A;
 }
 
-/* Tamil script needs a little more line height and less tracking. */
+/* Tamil typography */
 html[lang="ta"] .eyebrow {
   letter-spacing: 0.08em;
 }
+
 html[lang="ta"] h1,
 html[lang="ta"] h2 {
   line-height: 1.3;
@@ -59,74 +62,84 @@ html[lang="ta"] h2 {
     width: min(1160px, calc(100% - 40px));
     margin-inline: auto;
   }
+
   .eyebrow {
-    color: #B99AF5;
+    color: #49316D;
     font-size: 11px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    font-weight: 500;
+    font-weight: 600;
   }
+
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border: 1px solid #49365D;
+    border: 1px solid #D6B56D;
     padding: 10px 20px;
     border-radius: 6px;
-    color: #B99AF5;
+    color: #49316D;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     letter-spacing: 0.03em;
-    background: rgba(33, 24, 47, 0.6);
+    background: #FFFFFF;
     cursor: pointer;
     transition: all 0.2s ease-in-out;
   }
+
   .btn:hover {
-    background: #21182F;
-    border-color: #7851D8;
-    color: #F7F4FC;
-    box-shadow: 0 0 16px rgba(120, 81, 216, 0.2);
+    background: #F0EADF;
+    border-color: #B9954D;
+    color: #49316D;
   }
+
   .btn-fill {
-    background: #7851D8;
-    border-color: #7851D8;
-    color: #F7F4FC;
-    box-shadow: 0 4px 14px rgba(120, 81, 216, 0.28);
+    background: #D6B56D;
+    border-color: #D6B56D;
+    color: #30263A;
+    box-shadow: 0 4px 14px rgba(185, 149, 77, 0.18);
   }
+
   .btn-fill:hover {
-    background: #8c67eb;
-    border-color: #8c67eb;
-    color: #ffffff;
-    box-shadow: 0 6px 20px rgba(120, 81, 216, 0.4);
+    background: #C4A052;
+    border-color: #C4A052;
+    color: #30263A;
+    box-shadow: 0 6px 20px rgba(185, 149, 77, 0.25);
     transform: translateY(-1px);
   }
+
   .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none !important;
     box-shadow: none !important;
   }
+
   .field {
-    border: 1px solid #49365D;
-    background: #140E20;
+    border: 1px solid #E5D9C5;
+    background: #FFFFFF;
     border-radius: 6px;
     padding: 11px 14px;
-    color: #F7F4FC;
+    color: #30263A;
     font-size: 16px;
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
+
   @media (min-width: 768px) {
     .field {
       font-size: 14px;
     }
   }
+
   .field:focus {
-    border-color: #7851D8;
-    box-shadow: 0 0 0 2px rgba(120, 81, 216, 0.25);
+    border-color: #D6B56D;
+    box-shadow: 0 0 0 2px rgba(214, 181, 109, 0.2);
   }
+
   .field::placeholder {
-    color: #837996;
+    color: #95899A;
   }
 }
+
