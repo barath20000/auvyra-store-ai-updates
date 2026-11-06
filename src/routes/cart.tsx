@@ -1,3 +1,4 @@
+
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { BookOpen, FileText, Minus, Package, Plus, ShoppingBag, X } from 'lucide-react'
 import { categories, formatPrice } from '@/data/products'
@@ -23,14 +24,14 @@ function CartPage() {
   const hasDigital = cartItems.some((i) => i.edition === 'digital')
 
   return (
-    <section className="min-h-[65vh] bg-[#0B0A10] py-12 md:py-16">
+    <section className="min-h-[65vh] bg-[#F7F3EA] py-12 text-[#30263A] md:py-16">
       <div className="wrap">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#49365D] bg-[#21182F] text-[#B99AF5]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#E5D9C5] bg-white text-[#302044]">
               <ShoppingBag size={20} strokeWidth={1.8} />
             </div>
-            <h1 className="font-serif text-[38px] font-normal leading-tight text-[#F7F4FC] md:text-[46px]">
+            <h1 className="font-serif text-[38px] font-normal leading-tight text-[#30263A] md:text-[46px]">
               {t('cart.title')}
             </h1>
           </div>
@@ -38,16 +39,16 @@ function CartPage() {
           <Link
             to="/"
             hash="store"
-            className="text-xs font-medium text-[#B99AF5] hover:underline"
+            className="text-xs font-medium text-[#8A6A36] hover:underline"
           >
             ← Continue shopping
           </Link>
         </div>
 
         {cartItems.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#49365D] bg-[#21182F] py-16 text-center shadow-lg">
-            <BookOpen className="mx-auto mb-4 h-12 w-12 text-[#B99AF5]/50" />
-            <p className="mb-6 text-sm text-[#B5ADC5]">{t('cart.empty')}</p>
+          <div className="rounded-xl border border-dashed border-[#D6B56D] bg-white py-16 text-center shadow-sm">
+            <BookOpen className="mx-auto mb-4 h-12 w-12 text-[#B9954D]/60" />
+            <p className="mb-6 text-sm text-[#756B7D]">{t('cart.empty')}</p>
             <Link to="/" hash="store" className="btn btn-fill">
               {t('cart.browse')}
             </Link>
@@ -55,7 +56,7 @@ function CartPage() {
         ) : (
           <div className="grid items-start gap-8 lg:grid-cols-[1fr_360px]">
             {/* Cart Items List */}
-            <ul className="divide-y divide-[#49365D] rounded-xl border border-[#49365D] bg-[#21182F] shadow-lg">
+            <ul className="divide-y divide-[#E5D9C5] rounded-xl border border-[#E5D9C5] bg-white shadow-sm">
               {cartItems.map((p) => {
                 const category = categories.find((c) => c.id === p.category) || categories[0]
                 const isPhysical = p.edition === 'physical'
@@ -63,7 +64,7 @@ function CartPage() {
                 return (
                   <li
                     key={p.cartKey}
-                    className="flex items-center gap-4 p-4 transition-colors hover:bg-[#251b36] sm:gap-5 sm:p-5"
+                    className="flex items-center gap-4 p-4 transition-colors hover:bg-[#FCFAF5] sm:gap-5 sm:p-5"
                   >
                     <Link
                       to="/products/$productId"
@@ -78,17 +79,17 @@ function CartPage() {
                       {/* Edition & Category Tag */}
                       <div className="flex flex-wrap items-center gap-2">
                         {isPhysical ? (
-                          <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-amber-300">
+                          <span className="inline-flex items-center gap-1 rounded border border-[#D6B56D]/50 bg-[#F7F3EA] px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-[#80602F]">
                             <Package size={10} />
                             <span>Physical Book</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded bg-[#7851D8]/20 border border-[#7851D8]/40 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-[#B99AF5]">
+                          <span className="inline-flex items-center gap-1 rounded border border-[#D6B56D]/50 bg-[#F7F3EA] px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-[#80602F]">
                             <FileText size={10} />
                             <span>Digital PDF</span>
                           </span>
                         )}
-                        <span className="text-[10px] uppercase tracking-wider text-[#B5ADC5]">
+                        <span className="text-[10px] uppercase tracking-wider text-[#756B7D]">
                           {text.category(category)}
                         </span>
                       </div>
@@ -97,12 +98,12 @@ function CartPage() {
                       <Link
                         to="/products/$productId"
                         params={{ productId: String(p.id) }}
-                        className="mt-1 block font-serif text-lg font-medium leading-tight text-[#F7F4FC] transition-colors hover:text-[#B99AF5] sm:text-xl"
+                        className="mt-1 block font-serif text-lg font-medium leading-tight text-[#30263A] transition-colors hover:text-[#8A6A36] sm:text-xl"
                       >
                         {text.name(p)}
                       </Link>
 
-                      <div className="mt-1 text-[11px] text-[#B5ADC5]">
+                      <div className="mt-1 text-[11px] text-[#756B7D]">
                         <span className="tabular-nums">{formatPrice(p.unitPrice)}</span> each ·{' '}
                         {text.language(p.language)} · {p.pages}p
                       </div>
@@ -110,27 +111,27 @@ function CartPage() {
 
                     {/* Quantity & Item Cost */}
                     <div className="flex flex-col items-end gap-2.5">
-                      <div className="font-serif text-xl font-medium text-[#F7F4FC] tabular-nums">
+                      <div className="font-serif text-xl font-medium text-[#302044] tabular-nums">
                         {formatPrice(p.unitPrice * p.quantity)}
                       </div>
 
                       {/* Quantity Selector */}
                       <div
-                        className="inline-flex items-center rounded-md border border-[#49365D] bg-[#140E20]"
+                        className="inline-flex items-center rounded-md border border-[#E5D9C5] bg-[#F7F3EA]"
                         aria-label={`Quantity for ${text.name(p)}`}
                       >
                         <button
                           type="button"
                           onClick={() => decreaseQuantity(p.cartKey)}
                           disabled={p.quantity <= 1}
-                          aria-label={`Decrease quantity`}
-                          className="p-1.5 text-[#B5ADC5] transition hover:text-[#F7F4FC] disabled:cursor-not-allowed disabled:opacity-30"
+                          aria-label="Decrease quantity"
+                          className="p-1.5 text-[#756B7D] transition hover:text-[#302044] disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           <Minus size={14} />
                         </button>
                         <span
                           aria-live="polite"
-                          className="min-w-8 text-center text-xs font-medium text-[#F7F4FC] tabular-nums"
+                          className="min-w-8 text-center text-xs font-medium text-[#30263A] tabular-nums"
                         >
                           {p.quantity}
                         </span>
@@ -138,8 +139,8 @@ function CartPage() {
                           type="button"
                           onClick={() => increaseQuantity(p.cartKey)}
                           disabled={p.quantity >= 99}
-                          aria-label={`Increase quantity`}
-                          className="p-1.5 text-[#B5ADC5] transition hover:text-[#F7F4FC] disabled:cursor-not-allowed disabled:opacity-30"
+                          aria-label="Increase quantity"
+                          className="p-1.5 text-[#756B7D] transition hover:text-[#302044] disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           <Plus size={14} />
                         </button>
@@ -148,7 +149,7 @@ function CartPage() {
                       <button
                         type="button"
                         onClick={() => removeFromCart(p.cartKey)}
-                        className="inline-flex items-center gap-1 text-[11px] text-[#B5ADC5] transition-colors hover:text-[#ff7b72]"
+                        className="inline-flex items-center gap-1 text-[11px] text-[#756B7D] transition-colors hover:text-red-600"
                       >
                         <X size={12} /> {t('cart.remove')}
                       </button>
@@ -158,19 +159,19 @@ function CartPage() {
               })}
             </ul>
 
-            {/* Order Summary Aside */}
-            <aside className="rounded-xl border border-[#49365D] bg-[#21182F] p-6 shadow-xl lg:sticky lg:top-24">
+            {/* Order Summary */}
+            <aside className="rounded-xl border border-[#E5D9C5] bg-white p-6 shadow-sm lg:sticky lg:top-24">
               <OrderTotals items={cartItems} />
 
-              <div className="my-4 space-y-1.5 rounded-lg border border-[#49365D]/60 bg-[#140E20] p-3 text-[11px] text-[#B5ADC5]">
+              <div className="my-4 space-y-1.5 rounded-lg border border-[#E5D9C5] bg-[#F7F3EA] p-3 text-[11px] text-[#756B7D]">
                 {hasDigital && (
-                  <div className="flex items-center gap-1.5 text-[#B99AF5]">
+                  <div className="flex items-center gap-1.5 text-[#80602F]">
                     <FileText size={12} />
                     <span>Digital downloads: Delivered to Email &amp; WhatsApp</span>
                   </div>
                 )}
                 {hasPhysical && (
-                  <div className="flex items-center gap-1.5 text-amber-300">
+                  <div className="flex items-center gap-1.5 text-[#80602F]">
                     <Package size={12} />
                     <span>Physical books: Free doorstep courier shipping</span>
                   </div>
@@ -186,7 +187,7 @@ function CartPage() {
                 label={`${t('cart.checkout')} · ${formatPrice(total)}`}
               />
 
-              <p className="mt-4 text-center text-[11px] text-[#837996]">
+              <p className="mt-4 text-center text-[11px] text-[#756B7D]">
                 Safe &amp; Secure Order Processing · AUVYRA
               </p>
             </aside>
@@ -195,4 +196,4 @@ function CartPage() {
       </div>
     </section>
   )
-}
+                            }
